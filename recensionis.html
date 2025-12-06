@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Recensioni</title>
+    <style>
+        body {
+            background: #f2f2f2;
+            font-family: Arial, sans-serif;
+            padding: 30px;
+        }
+
+        .box {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            width: 850px;
+            margin: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border-radius: 8px;
+            resize: none;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+
+        input {
+            width: 250px;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        .star {
+            font-size: 22px;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #2d6cff;
+            color: white;
+        }
+
+        .review-item {
+            background: #fafafa;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #e5e5e5;
+        }
+
+        #author-box {
+            float: right;
+            margin-top: -20px;
+            color: #666;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+
+    <h2>Lascia la tua recensione</h2>
+
+    <textarea id="review-text" placeholder="Scrivi la tua recensione..."></textarea>
+
+    <br><br>
+
+    Nome (opzionale):  
+    <input id="reviewer-name" placeholder="Es: Maria">
+
+    <br><br>
+
+    Valutazione:  
+    <span class="star" data-value="1">☆</span>
+    <span class="star" data-value="2">☆</span>
+    <span class="star" data-value="3">☆</span>
+    <span class="star" data-value="4">☆</span>
+    <span class="star" data-value="5">☆</span>
+    <b id="rating-count">0</b>
+
+    <br><br>
+
+    <button id="save-review">Salva recensione</button>
+    <button id="clear-fields" style="background:#aaa;">Pulisci</button>
+
+    <div id="author-box">Autore: Attia Flubabtir</div>
+
+    <br><br><br>
+
+    <h3>Recensioni</h3>
+
+    <div id="no-reviews-message" style="
+        display:none;
+        padding: 12px;
+        background: #f5f5f5;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        color: #666;
+    ">
+        Non ci sono ancora recensioni. Scrivine una!
+    </div>
+
+    <div id="reviews-container"></div>
+
+</div>
+
+<!-- FIREBASE + SCRIPT -->
+<script type="module">
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyAwO5zYGhx-DIyKByVoeMvPy3g624XGrgc",
+        authDomain: "recensioni-server.firebaseapp.com",
+        projectId: "recensioni-server",
+        storageBucket: "recensioni-server.firebasestorage.app",
+        messagingSenderId: "128337614274",
+        appId: "1:128337614274:web:424b186ca963bf7588b25b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Riferimenti
+    const reviewInput = document.getElementById("review-text");
+    const nameInput = document.getElementById("reviewer-name");
+    const stars = document.querySelectorAll(".star");
+    const reviewsContainer = document.getElementById("reviews-container");
+    const noReviews = document.getElementById("no-reviews-message");
+
+    let currentRating = 0;
+
+    // Sistema stelle
+    stars.forEach(star => {
+        star.addEventListener("click", () => {
+            currentRating = parseInt(star.dataset.value);
+            updateStars();
+        });
+    });
+
+    function updateStars() {
+        stars.forEach(s => {
+            s.textContent = parseInt(s.dataset.value) <= currentRating ? "★" : "☆";
+        });
+        document.getElementById("rating-count").textContent = currentRating;
+    }
+
+    // Mostra/nascondi "nessuna recensione"
+    function checkEmpty() {
+        noReviews.style.display =
+            reviewsContainer.children.length === 0 ? "block" : "none";
+    }
+
+    // Salva recensione
+    document.getElementById("save-review").addEventListener("click", async () => {
+        const text = reviewInput.value.trim();
+        if (!text) {
+            alert("Scrivi una recensione prima!");
+            return;
+        }
+
+        await addDoc(collection(db, "recensioni"), {
+            testo: text,
+            nome: nameInput.value.trim() || "Anonimo",
+            stelle: currentRating,
+            data: new Date().toISOString()
+        });
+
+        reviewInput.value = "";
+        nameInput.value = "";
+        currentRating = 0;
+        updateStars();
+
+        loadReviews();
+    });
+
+    // Pulisci campi
+    document.getElementById("clear-fields").addEventListener("click", () => {
+        reviewInput.value = "";
+        nameInput.value = "";
+        currentRating = 0;
+        updateStars();
+    });
+
+    // Carica recensioni
+    async function loadReviews() {
+        reviewsContainer.innerHTML = "";
+
+        const snapshot = await getDocs(collection(db, "recensioni"));
+        snapshot.forEach(doc => {
+            const r = doc.data();
+
+            const div = document.createElement("div");
+            div.classList.add("review-item");
+
+            div.innerHTML = `
+                <strong>${r.nome}</strong>
+                <br>
+                ${"★".repeat(r.stelle)}${"☆".repeat(5 - r.stelle)}
+                <p>${r.testo}</p>
+            `;
+
+            reviewsContainer.appendChild(div);
+        });
+
+        checkEmpty();
+    }
+
+    loadReviews();
+
+</script>
+
+</body>
+</html>
